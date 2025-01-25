@@ -17,7 +17,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .common import is_outlet, is_wall_switch
+from .common import is_humidifier, is_outlet, is_wall_switch
 from .const import DOMAIN, VS_COORDINATOR, VS_DEVICES, VS_DISCOVERY
 from .coordinator import VeSyncDataCoordinator
 from .entity import VeSyncBaseEntity
@@ -31,6 +31,8 @@ class VeSyncSwitchEntityDescription(SwitchEntityDescription):
 
     is_on: Callable[[VeSyncBaseDevice], bool]
     exists_fn: Callable[[VeSyncBaseDevice], bool]
+    on_fn: Callable[[VeSyncBaseDevice], bool]
+    off_fn: Callable[[VeSyncBaseDevice], bool]
 
 
 SENSOR_DESCRIPTIONS: Final[tuple[VeSyncSwitchEntityDescription, ...]] = (
@@ -40,6 +42,24 @@ SENSOR_DESCRIPTIONS: Final[tuple[VeSyncSwitchEntityDescription, ...]] = (
         # Other types of wall switches support dimming.  Those use light.py platform.
         exists_fn=lambda device: is_wall_switch(device) or is_outlet(device),
         name=None,
+        on_fn=lambda device: device.turn_on(),
+        off_fn=lambda device: device.turn_off(),
+    ),
+    VeSyncSwitchEntityDescription(
+        key="automatic_stop",
+        is_on=lambda device: device.config["automatic_stop"],
+        exists_fn=is_humidifier,
+        name="Automatic stop",
+        on_fn=lambda device: device.automatic_stop_on(),
+        off_fn=lambda device: device.automatic_stop_off(),
+    ),
+    VeSyncSwitchEntityDescription(
+        key="display",
+        is_on=lambda device: device.details["display"],
+        exists_fn=is_humidifier,
+        name="Display",
+        on_fn=lambda device: device.turn_on_display(),
+        off_fn=lambda device: device.turn_off_display(),
     ),
 )
 
@@ -108,10 +128,10 @@ class VeSyncSwitchEntity(SwitchEntity, VeSyncBaseEntity):
 
     def turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        self.device.turn_off()
-        self.schedule_update_ha_state()
+        if self.entity_description.off_fn(self.device):
+            self.schedule_update_ha_state()
 
     def turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
-        self.device.turn_on()
-        self.schedule_update_ha_state()
+        if self.entity_description.on_fn(self.device):
+            self.schedule_update_ha_state()

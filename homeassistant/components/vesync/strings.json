@@ -43,6 +43,14 @@
         "name": "Current voltage"
       }
     },
+    "switch": {
+      "automatic_stop": {
+        "name": "Automatic off"
+      },
+      "display": {
+        "name": "Display"
+      }
+    },
     "binary_sensor": {
       "water_lacks": {
         "name": "Low water"

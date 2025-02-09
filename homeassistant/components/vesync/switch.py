@@ -17,12 +17,35 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .common import is_outlet, is_wall_switch
+from .common import is_outlet, is_wall_switch, rgetattr
 from .const import DOMAIN, VS_COORDINATOR, VS_DEVICES, VS_DISCOVERY
 from .coordinator import VeSyncDataCoordinator
 from .entity import VeSyncBaseEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def supports_automatic_stop(device: VeSyncBaseDevice) -> bool:
+    """Check if the device supports automatic off setting.
+
+    As of pyvesync 2.1.17, the classes VeSyncHumid1000S and VeSyncHumid200300S populate
+    config.automatic_stop which represents the automatic stop status. VeSyncSuperior6000S
+    does not populate any property which represents automatic off.
+
+    Classes VeSyncSuperior6000S and VeSyncHumid200300S expose set_automatic_stop and
+    automatic_stop_off methods.
+
+    VeSyncHumid1000S derives from VeSyncHumid200300S and VeSyncSuperior6000S derives from
+    VeSyncBaseDevice.
+
+    Based on this, the automatic_stop setting is only functional on VeSyncHumid200300S.
+    """
+    return rgetattr(device, "config.automatic_stop") is not None
+
+
+def supports_display(device: VeSyncBaseDevice) -> bool:
+    """Check if the device supports display setting."""
+    return rgetattr(device, "display_state") is not None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -44,6 +67,22 @@ SENSOR_DESCRIPTIONS: Final[tuple[VeSyncSwitchEntityDescription, ...]] = (
         name=None,
         on_fn=lambda device: device.turn_on(),
         off_fn=lambda device: device.turn_off(),
+    ),
+    VeSyncSwitchEntityDescription(
+        key="automatic_stop",
+        translation_key="automatic_stop",
+        exists_fn=supports_automatic_stop,
+        is_on=lambda device: device.config.get("automatic_stop", False),
+        on_fn=lambda device: device.automatic_stop_on(),
+        off_fn=lambda device: device.automatic_stop_off(),
+    ),
+    VeSyncSwitchEntityDescription(
+        key="display",
+        translation_key="display",
+        exists_fn=supports_display,
+        is_on=lambda device: device.display_state,
+        on_fn=lambda device: device.turn_on_display(),
+        off_fn=lambda device: device.turn_off_display(),
     ),
 )
 

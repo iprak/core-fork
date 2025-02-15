@@ -17,12 +17,32 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .common import is_outlet, is_wall_switch
+from .common import is_outlet, is_wall_switch, rgetattr
 from .const import DOMAIN, VS_COORDINATOR, VS_DEVICES, VS_DISCOVERY
 from .coordinator import VeSyncDataCoordinator
 from .entity import VeSyncBaseEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def supports_automatic_stop(device: VeSyncBaseDevice) -> bool:
+    """Check if the device supports automatic off setting.
+
+    As of pyvesync 2.1.17, the classes VeSyncHumid1000S and VeSyncHumid200300S populate
+    config.automatic_stop which represents the automatic stop status.
+
+    The other humidifier class VeSyncSuperior6000S (Superior 6000S Smart Evaporative
+    Humidifier) does not populate any property which represents automatic off. Looks
+    like it does not support auto-off, I did not see it mentioned at
+    https://levoit.com/products/superior-6000s-smart-evaporative-humidifier.
+
+    But VeSyncSuperior6000S and VeSyncHumid200300S expose set_automatic_stop and
+    automatic_stop_off methods and this feels qestionable for VeSyncSuperior6000S.
+
+    Based on this, the automatic_stop setting is only functional on VeSyncHumid200300S
+    and we can check presence of config.automatic_stop.
+    """
+    return rgetattr(device, "config.automatic_stop") is not None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -44,6 +64,14 @@ SENSOR_DESCRIPTIONS: Final[tuple[VeSyncSwitchEntityDescription, ...]] = (
         name=None,
         on_fn=lambda device: device.turn_on(),
         off_fn=lambda device: device.turn_off(),
+    ),
+    VeSyncSwitchEntityDescription(
+        key="automatic_stop",
+        translation_key="automatic_stop",
+        exists_fn=supports_automatic_stop,
+        is_on=lambda device: device.config.get("automatic_stop", False),
+        on_fn=lambda device: device.automatic_stop_on(),
+        off_fn=lambda device: device.automatic_stop_off(),
     ),
 )
 

@@ -5,10 +5,15 @@ import requests_mock
 from syrupy import SnapshotAssertion
 
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
+from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
-from .common import ALL_DEVICE_NAMES, mock_devices_response
+from .common import (
+    ALL_DEVICE_NAMES,
+    ENTITY_HUMIDIFIER_300S_AUTOMATIC_OFF_SWITCH,
+    mock_devices_response,
+)
 
 from tests.common import MockConfigEntry
 
@@ -49,3 +54,34 @@ async def test_switch_state(
     # Check states
     for entity in entities:
         assert hass.states.get(entity.entity_id) == snapshot(name=entity.entity_id)
+
+
+@pytest.mark.parametrize(
+    ("install_humidifier_device", "service_name", "expected_setter"),
+    [
+        ("humidifier_300s", SERVICE_TURN_OFF, "automatic_stop_off"),
+        ("humidifier_300s", SERVICE_TURN_ON, "automatic_stop_on"),
+    ],
+    indirect=["install_humidifier_device"],
+)
+async def test_set_automatic_on_off(
+    hass: HomeAssistant,
+    manager,
+    humidifier_300s,
+    install_humidifier_device,
+    service_name,
+    expected_setter,
+) -> None:
+    """Test set of automatic on."""
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        service_name,
+        {
+            ATTR_ENTITY_ID: ENTITY_HUMIDIFIER_300S_AUTOMATIC_OFF_SWITCH,
+        },
+        blocking=True,
+    )
+
+    # Assert that setter was invoked
+    getattr(humidifier_300s, expected_setter).assert_called_once()

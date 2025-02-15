@@ -138,6 +138,8 @@ def humidifier_fixture():
 @pytest.fixture(name="humidifier_300s")
 def humidifier_300s_fixture():
     """Create a mock VeSync Classic300S humidifier fixture."""
+    # return MagicMock(
+    #    auto_spec=VeSyncHumid200300S,
     return Mock(
         VeSyncHumid200300S,
         cid="300s-humidifier",
